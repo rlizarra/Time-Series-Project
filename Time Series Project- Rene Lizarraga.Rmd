@@ -1,0 +1,159 @@
+---
+title: "Time Series Analysis Project"
+author: "Rene Lizarraga"
+date: "April 21, 2019"
+output:
+  word_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load astsa library
+```{r}
+library(astsa)
+library(fpp2)
+library(ggplot2)
+```
+
+Selected "flu" dataset for analysis
+```{r}
+#?flu
+```
+Print head of flu
+```{r}
+data(flu)
+head(flu)
+```
+Verify object class is time-series
+```{r}
+class(flu)
+```
+View summary statistics 
+```{r}
+cat(" mean:",mean(flu))
+cat(" std dev:",sd(flu))
+cat(" min:",min(flu))
+cat(" max:",max(flu))
+```
+View start, end, and frequecy of data
+```{r}
+cat("start:",start(flu)) 
+cat(" start:",end(flu))
+cat(" frequency:",frequency(flu))
+```
+Generate a boxplot,
+There is a declining trend with an annual cycle. Flu deaths generally peak in January and bottom out in June. 
+```{r}
+boxplot(flu~cycle(flu))
+```
+Plot ab line for flu data
+```{r}
+plot(flu)
+abline(reg=lm(flu~time(flu)))
+```
+The data show somewhat of a decrease of variation over time. Note the min/max spread in 1968 and 1968 versus those in subsequent years. 
+
+Lets us a Box Cox function to estimate the degree to which the data should be transformed.
+```{r}
+BoxCox.lambda(flu)
+```
+
+Let's take this value for lambda and perform a Box Cox transformation.
+
+```{r}
+flu_trans <- BoxCox(flu,lambda = -1)
+```
+
+Lets plot the transformed results. This seems to reduce the variations. 
+```{r}
+plot(flu_trans)
+```
+
+We decompose the flu data. 
+
+"Observed" is our transformed time series
+"Trend" show the general direction up or down of a time series. In this case there is a clear downward trend.
+"Seasonal" is a repeating pattern
+"Random is the noise in the time series not explained by trend or seasonality
+
+```{r}
+plot(decompose(flu_trans))
+```
+Fit a regression model. The r-square of 0.12 indicates 12% of the variation is explained by the model. This result is not good. A linear regression model does not do a good job estimating the data. 
+
+```{r}
+fit_lm <- lm(flu_trans~time(flu_trans), na.action=NULL)
+summary(fit_lm)
+```
+Plot autocorrelation (acf)
+```{r}
+acf(flu_trans)
+```
+Plot partial-autocorrelation (pacf)
+```{r}
+pacf(flu_trans)
+```
+Lets fit six ARIMA models
+
+Model 1
+```{r}
+fit_1 <- arima(flu_trans,order = c(0,0,1))
+summary(fit_1)
+```
+Model 2
+```{r}
+fit_2 <- arima(flu_trans,order = c(1,0,0))
+summary(fit_2)
+```
+Model 3
+```{r}
+fit_3 <- arima(flu_trans,order = c(1,0,1))
+summary(fit_3)
+```
+Model 4
+```{r}
+fit_4 <- arima(flu_trans,order = c(0,0,2))
+summary(fit_4)
+```
+Model 5
+```{r}
+fit_5 <- arima(flu_trans,order = c(1,0,2))
+summary(fit_5)
+```
+Model 6
+```{r}
+fit_6 <- arima(flu_trans,order = c(1,1,1))
+summary(fit_6)
+```
+Model 5 performed best with lowest AIC of 218.01 and RMSE of 0.5285.
+
+We will check residuals for Model 3 to see if the residuals look like white noise. 
+
+```{r}
+checkresiduals(fit_5)
+
+```
+There is still signifcant autocorrelation in the residuals and the Ljung-Box test p<0.05 show the residuals do NOT appear to be white noise. The model needs to be improved. 
+
+I like to use the auto arima function from the R fpp2 library. 
+
+```{r}
+library(fpp2)
+```
+
+Lets fit an ARIMA model using this library. 
+
+```{r}
+fit_auto <- auto.arima(flu_trans)
+summary(fit_auto)
+```
+The model is significantly improved with an AIC of 116.87 and RMSE of 0.3342. 
+
+Lets check the residuals. 
+
+```{r}
+checkresiduals(fit_auto)
+```
+
+The residuals appear to pass the white noise test. The residuals do not have significant autocorrelations (except at lag-23) and the Ljung-Box test p-value is 0.118; above the alpha level of 0.05. 
